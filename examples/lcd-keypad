@@ -1,0 +1,54 @@
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "lcd.h"
+#include "keypad.h"
+
+uint columns[4] = { 18, 19, 20, 21 };
+uint rows[4] = { 10, 11, 12, 13 };
+char matrix[16] = {
+    '1', '2' , '3', 'A',
+    '4', '5' , '6', 'B',
+    '7', '8' , '9', 'C',
+    '*', '0' , '#', 'D'
+};
+#define I2C         i2c0
+// Eleccion de GPIO para SDA
+#define SDA_GPIO    16
+// Eleccion de GPIO para SCL
+#define SCL_GPIO    17
+// Direccion de 7 bits del adaptador del LCD
+#define ADDR        0x27
+
+int main() {
+    
+    // Inicializo USB
+    stdio_init_all();
+    // Inicializo el I2C con un clock de 100 KHz
+    i2c_init(I2C, 100000);
+    // Habilito la funcion de I2C en los GPIOs
+    gpio_set_function(SDA_GPIO, GPIO_FUNC_I2C);
+    gpio_set_function(SCL_GPIO, GPIO_FUNC_I2C);
+    // Habilito pull-ups
+    gpio_pull_up(SDA_GPIO);
+    gpio_pull_up(SCL_GPIO);
+    // Inicializo LCD
+    lcd_init(I2C, ADDR);
+    // Inicializar el teclado
+    pico_keypad_init(columns, rows, matrix);
+    char key;
+
+    while (true) {
+         // Limpio pantalla
+        lcd_clear();
+        // Leo la tecla presionada
+        key = pico_keypad_get_key();
+        // Imprimo mensaje fijo
+        lcd_string("Press Key:");
+        // Bajo el cursor a la segunda fila
+        lcd_set_cursor(1, 2);
+        //imprimo la tecla presionada
+        lcd_char(key);
+        // Demora
+        sleep_ms(250);
+    }
+}
