@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "hardware/timer.h"
-#include "pico_keypad4x4.h"
+#include "keypad.h"
 
 uint columns[4] = { 6, 7, 8, 9 };
 uint rows[4] = { 2, 3, 4, 5 };
