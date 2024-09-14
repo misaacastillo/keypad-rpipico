@@ -1,4 +1,4 @@
-#include "pico_keypad4x4.h"
+#include "keypad.h"
 
 #define GPIO_INPUT false
 #define GPIO_OUTPUT true
