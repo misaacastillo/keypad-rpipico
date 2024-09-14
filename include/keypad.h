@@ -1,14 +1,14 @@
-#ifndef KEYPAD_H
-#define KEYPAD_H
+#ifndef PICO_KEYPAD4X4_H
+#define PICO_KEYPAD4X4_H
 
 #include "pico/stdlib.h"
+#include "hardware/timer.h"
 
-// Definir el número de filas y columnas del teclado
-#define KEYPAD_ROWS 4
-#define KEYPAD_COLS 4
+void pico_keypad_init(uint columns[4], uint rows[4], char matrix_values[16]);
 
-// Declaración de las funciones de la biblioteca prototipos
-void keypad_init(const uint8_t row_pins[KEYPAD_ROWS], const uint8_t col_pins[KEYPAD_COLS]);
-char keypad_get_key(const uint8_t row_pins[KEYPAD_ROWS], const uint8_t col_pins[KEYPAD_COLS]);
+char pico_keypad_get_key(void);
 
-#endif // KEYPAD_H
+void pico_keypad_irq_enable(bool enable, gpio_irq_callback_t callback);
+
+#endif
+
