@@ -1,23 +1,22 @@
 #include <stdio.h>
-#include "hardware/timer.h"
+
 #include "keypad.h"
 
-uint columns[4] = { 6, 7, 8, 9 };
-uint rows[4] = { 2, 3, 4, 5 };
-char matrix[16] = {
-    '1', '2' , '3', 'A',
-    '4', '5' , '6', 'B',
-    '7', '8' , '9', 'C',
-    '*', '0' , '#', 'D'
-};
+int main(void) {
+    uint row_pins[4] = {2, 3, 4, 5};
+    uint column_pins[4] = {6, 7, 8, 9};
+    char labels[16] = "123A456B789C*0#D";
+    char previous = '\0';
 
-int main() {
     stdio_init_all();
-    pico_keypad_init(columns, rows, matrix);
-    char key;
+    pico_keypad_init(column_pins, row_pins, labels);
+
     while (true) {
-        key = pico_keypad_get_key();
-        printf("Key pressed: %c\n", key);
-        busy_wait_us(500000);
+        char key = pico_keypad_get_key();
+        if (key != '\0' && key != previous) {
+            printf("Key %c\n", key);
+        }
+        previous = key;
+        sleep_ms(20);
     }
 }

@@ -1,113 +1,96 @@
+/*
+ * Derived from pico-keypad4x4 by Oswaldo Hernandez and Owen Jauregui.
+ * Copyright (c) 2023 Oswaldo Hernandez
+ * Copyright (c) 2026 Misael Castillo (modifications)
+ * SPDX-License-Identifier: MIT
+ */
 #include "keypad.h"
 
-#define GPIO_INPUT false
-#define GPIO_OUTPUT true
+#include "hardware/timer.h"
 
-uint _columns[4];
-uint _rows[4];
-char _matrix_values[16];
+#define SIDE 4
+#define KEY_COUNT (SIDE * SIDE)
 
-uint all_columns_mask = 0x0;
-uint column_mask[4];
+static uint column_pins[SIDE];
+static uint row_pins[SIDE];
+static uint32_t column_masks[SIDE];
+static uint32_t all_columns_mask;
+static char keymap[KEY_COUNT];
 
-/**
- * @brief Set up the keypad
- *
- * @param columns Pins connected to keypad columns
- * @param rows Pins connected to keypad rows
- * @param matrix_values values assigned to each key
- */
 void pico_keypad_init(uint columns[4], uint rows[4], char matrix_values[16]) {
-
-    for (int i = 0; i < 16; i++) {
-        _matrix_values[i] = matrix_values[i];
+    if (all_columns_mask != 0) {
+        for (uint i = 0; i < SIDE; ++i) {
+            gpio_disable_pulls(column_pins[i]);
+            gpio_deinit(column_pins[i]);
+            gpio_deinit(row_pins[i]);
+        }
     }
 
-    for (int i = 0; i < 4; i++) {
+    all_columns_mask = 0;
+    for (uint i = 0; i < KEY_COUNT; ++i) {
+        keymap[i] = matrix_values[i];
+    }
 
-        _columns[i] = columns[i];
-        _rows[i] = rows[i];
+    for (uint i = 0; i < SIDE; ++i) {
+        column_pins[i] = columns[i];
+        row_pins[i] = rows[i];
+        column_masks[i] = UINT32_C(1) << column_pins[i];
+        all_columns_mask |= column_masks[i];
 
-        gpio_init(_columns[i]);
-        gpio_init(_rows[i]);
-
-        gpio_set_dir(_columns[i], GPIO_INPUT);
-        gpio_set_dir(_rows[i], GPIO_OUTPUT);
-
-        gpio_put(_rows[i], 1);
-
-        all_columns_mask = all_columns_mask + (1 << _columns[i]);
-        column_mask[i] = 1 << _columns[i];
+        gpio_init(column_pins[i]);
+        gpio_pull_down(column_pins[i]);
+        gpio_init(row_pins[i]);
+        gpio_disable_pulls(row_pins[i]);
+        gpio_put(row_pins[i], true);
+        gpio_set_dir(row_pins[i], GPIO_OUT);
     }
 }
 
-/**
- * @brief Scan and get the pressed key.
- *
- * This routine returns the first key found to be pressed
- * during the scan.
- */
 char pico_keypad_get_key(void) {
-    int row;
-    uint32_t cols;
-    bool pressed = false;
-
-    cols = gpio_get_all();
-    cols = cols & all_columns_mask;
-    
-    if (cols == 0x0) {
-        return 0;
+    if ((gpio_get_all() & all_columns_mask) == 0) {
+        return '\0';
     }
 
-    for (int j = 0; j < 4; j++) {
-        gpio_put(_rows[j], 0);
+    /* All row latches stay high. Inactive rows float instead of driving low. */
+    for (uint i = 0; i < SIDE; ++i) {
+        gpio_set_dir(row_pins[i], GPIO_IN);
     }
 
-    for (row = 0; row < 4; row++) {
-
-        gpio_put(_rows[row], 1);
-
+    int key = -1;
+    for (uint row = 0; row < SIDE; ++row) {
+        gpio_set_dir(row_pins[row], GPIO_OUT);
         busy_wait_us(10000);
+        uint32_t active = gpio_get_all() & all_columns_mask;
+        gpio_set_dir(row_pins[row], GPIO_IN);
 
-        cols = gpio_get_all();
-        gpio_put(_rows[row], 0);
-        cols = cols & all_columns_mask;
-        if (cols != 0x0) {
+        if (active == 0) {
+            continue;
+        }
+        if (key >= 0 || (active & (active - 1)) != 0) {
+            key = -1;
             break;
-        }   
+        }
+        for (uint col = 0; col < SIDE; ++col) {
+            if (active == column_masks[col]) {
+                key = (int)(row * SIDE + col);
+                break;
+            }
+        }
     }
 
-    for (int i = 0; i < 4; i++) {
-        gpio_put(_rows[i], 1);
+    for (uint i = 0; i < SIDE; ++i) {
+        gpio_set_dir(row_pins[i], GPIO_OUT);
     }
 
-    if (cols == column_mask[0]) {
-        return (char)_matrix_values[row * 4 + 0];
-    }
-    else if (cols == column_mask[1]) {
-        return (char)_matrix_values[row * 4 + 1];
-    }
-    if (cols == column_mask[2]) {
-        return (char)_matrix_values[row * 4 + 2];
-    }
-    else if (cols == column_mask[3]) {
-        return (char)_matrix_values[row * 4 + 3];
-    }
-    else {
-        return 0;
-    }
+    return key < 0 ? '\0' : keymap[key];
 }
 
-/**
- * @brief Setup keypad to work with IRQ.
- *
- * Make keypad pins work as processor interruption
- *
- * @param enable Enable or disable interruption pins
- * @param callback Function of what will happen if the key is pressed
- */
 void pico_keypad_irq_enable(bool enable, gpio_irq_callback_t callback) {
-    for (int i = 0; i < 4; i++) {
-        gpio_set_irq_enabled_with_callback(_columns[i], 0x8, enable, callback);
+    if (all_columns_mask == 0) {
+        return;
+    }
+    for (uint i = 0; i < SIDE; ++i) {
+        gpio_set_irq_enabled_with_callback(column_pins[i], GPIO_IRQ_EDGE_RISE,
+                                           enable, callback);
     }
 }
